@@ -187,8 +187,8 @@
                  (closure arg-list body n v)
                )
             ; else ASSUME a function call.
- 	         (let ((ev-args (evlis (cdr e) n v))
-                  (closure (xeval func-name n v)))
+ 	         (let ((ev-args (evlis (cdr e) n v)) ;evaluate all the args
+                  (closure (xeval func-name n v))) ;get the closure
                      (let ((new-names (cons (closure-parameters closure) (closure-names closure)))
                            (new-values (cons ev-args (closure-values closure)))
                            (body (closure-body closure)))

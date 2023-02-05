@@ -1,24 +1,72 @@
-(defun fl-interp (E P)
-    (xeval E P nil nil)
+(defun xassoc (e N V)
+    (if (null N)
+        nil
+        (if (member e (car N))
+            (locate e (car N) (car V)) ; locate e in N
+            (xassoc e (cdr N) (cdr V)) ; iterate over 
+        )
+    )
 )
 
-; for pre-defined methods, 
+(defun locate (var name-sublist value-sublist)
+    (if (eq var (car name-sublist))
+        (car value-sublist)
+    ; else
+        (locate var (cdr name-sublist) (cdr value-sublist))
+    )
+)
+
+(defun locate-function (name P)
+    (if (null P)
+        nil
+        (if (eq name (car (car P))) ; compare name against current name in P
+            (car (cdr (cdr (cdr (car P))))) ; return body, drop name and =
+            (locate-function name (cdr P))
+        )
+    )
+)
+
+(defun locate-parameters (name P)
+    (if (null P)
+        nil
+        (if (eq name (car (car P)))
+            (car (cdr (car P))) ; return body, drop name and =
+            (locate-parameters name (cdr P))
+        )
+    )
+)
+
+(defun closure (arg-list body n v) ; f (X Y) = (+ X Y) -> f (1 2) | (X Y) = arg-list, 
+    (cons (cons arg-list body) (cons n v))
+)
+
+(defun closure-parameters (c)
+    (car (car c))
+)
+
+(defun closure-body (c)
+    (cdr (car c))
+)
+
+(defun closure-values (c)
+    (cdr (cdr c))
+)
+
+(defun closure-names (c)
+    (car (cdr c))
+)
+
 
 (defun xeval (E P N V) ; E = expression, P = program, N = names, V = values
     ; iterate through
     (cond 
         ((null E) nil)
         ((numberp E) E)
-        ((atom E) ; do we need this? this prevents lists from being used
-            (xassoc E P N V)
+        ((or (atom E)) ; when given a bound variable (like X), this fetches and returns the value from V
+            (xassoc E N V)
         )
     (t ; from above cond
-        (do-fun E P N V)
-    )) 
-)
-
-(defun do-fun (E P N V)
-    (let 
+        (let 
         ((name (car E)) ; function name for current value in E
         (e1 (car (cdr E)))
         (e2 (car (cdr (cdr E))))
@@ -38,14 +86,12 @@
                         (null ev-e1)
                     )
                     ((eq name 'atom)
-                        'goob
-                        ;(atom ev-e1)
+                        (atom ev-e1)
                     )
                     ((eq name 'eq)
                         (eq ev-e1 ev-e2)
                     )
                     ((eq name 'first)
-                        ;(print 'awooga)
                         (car ev-e1)
                     )
                     ((eq name 'rest)
@@ -91,23 +137,32 @@
                         (or ev-e1 ev-e2)
                     )
                     ((eq name 'not)
-                        (not ev-e1 ev-e2)
+                        (not ev-e1)
                     )
                 ))
             )
-            () ; check if element is list, if it is, return it
-        (t ; if not in our default list of methods, check against P
-            
-        ) 
+        (t ; check against P if name is a function that has been user defined
+            (let ((body (locate-function name P))
+            (param-list (locate-parameters name P))
+            )
+                (if body ; the user defined it, evaluate function call
+                    (let ((evaluated-list (evlist (cdr E) P N V))
+                          (clos (closure param-list body N V))) ; do we need this?
+                        (let ((new-names (cons (closure-parameters clos) (closure-names clos)))
+                              (new-values (cons evaluated-list (closure-values clos))))
+                            (xeval body P new-names new-values) ; evaluate the body of the function
+                        )
+                    )
+                    ;E
+                    ;(xeval (car E) P N V)
+                    (evlist E P N V) ; otherwise, return as list since not a primitive and not a known function call
+                )
+            )
+        )
         )
     )
-)
-
-(defun islist (list)
-    (if (null list)
-        t
-        (if ())
     )
+    ) 
 )
 
 (defun evlist (arg-list P N V)
@@ -117,19 +172,6 @@
     )
 )
 
-(defun xassoc (e P N V)
-    (if (null N)
-        nil
-        (if (member e (car N))
-            (locate e (car N) (car V)) ; locate e in N
-            (xassoc e (cdr N) (cdr V)) ; iterate over 
-        )
-    )
-)
-
-(defun locate-function (name P)
-    (if (eq name (car (car P)))
-        (car (cdr (cdr P))) ; return body, drop name and =
-        (locate name (cdr value))
-    )
+(defun fl-interp (E P)
+    (xeval E P nil nil)
 )
