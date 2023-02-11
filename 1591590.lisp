@@ -1,7 +1,19 @@
+
+"
+Entry point for fl-interp
+"
 (defun fl-interp (E P)
     (xeval E P nil nil)
 )
 
+"
+Main loop:
+Returns nil for null expressions
+Returns E if E is a number
+If E is an atom, we iterate through the current context and return the associated value -> i.e. we assume atoms are variable names
+If the first element of E is an atomic function, we call run-atomic
+Otherwise, we call run-function to determine if the xeval call is on a user defined function or is just a list
+"
 (defun xeval (E P N V) ; E = expression, P = program, N = names, V = values
     ; iterate through
     (cond 
@@ -11,95 +23,105 @@
             (xassoc E N V)
         )
     (t ; from above cond
-        (let ((name (car E)) ; function name for current value in E
+        (let ((function-name (car E)) ; function function-name for current value in E
               (e1 (car (cdr E)))
               (e2 (car (cdr (cdr E))))
               (e3 (car (cdr (cdr (cdr E))))))
         (cond
-            ((eq name 'if)
+            ((eq function-name 'if)
                 (if (xeval e1 P N V)
                     (xeval e2 P N V)
                     (xeval e3 P N V)
                 )
             )
-            ((member name '(null atom eq first rest cons equal car cdr number + - * > < = and or not)) ; built in functions!
+            ((member function-name '(null atom eq first rest cons equal car cdr number + - * > < = and or not)) ; built in functions!
                 (let ((ev-e1 (xeval e1 P N V)) ; evaluate their arguments first
                       (ev-e2 (xeval e2 P N V)))
-                    (run-atomic name ev-e1 ev-e2)
+                    (run-atomic function-name ev-e1 ev-e2)
                 )
             )
-            (t ; check against P if name is a function that has been user defined
-                (run-function name E P N V)
+            (t ; check against P if function-name is a function that has been user defined
+                (run-function function-name E P N V)
             ))
         )
     )) 
 )
 
-(defun run-atomic (name ev-e1 ev-e2)
+"
+Compare function-name against all known atomic functions and run the associated one
+"
+(defun run-atomic (function-name ev-e1 ev-e2)
     (cond
-        ((eq name 'null)
+        ((eq function-name 'null)
             (null ev-e1)
         )
-        ((eq name 'atom)
+        ((eq function-name 'atom)
             (atom ev-e1)
         )
-        ((eq name 'eq)
+        ((eq function-name 'eq)
             (eq ev-e1 ev-e2)
         )
-        ((eq name 'first)
+        ((eq function-name 'first)
             (car ev-e1)
         )
-        ((eq name 'rest)
+        ((eq function-name 'rest)
             (cdr ev-e1)
         )
-        ((eq name 'cons)
+        ((eq function-name 'cons)
             (cons ev-e1 ev-e2)
         )
-        ((eq name 'equal)
+        ((eq function-name 'equal)
             (equal ev-e1 ev-e2)
         )
-        ((eq name 'car)
+        ((eq function-name 'car)
             (car ev-e1)
         )
-        ((eq name 'cdr)
+        ((eq function-name 'cdr)
             (cdr ev-e1)
         )
-        ((eq name 'number)
+        ((eq function-name 'number)
             (numberp ev-e1)
         )
-        ((eq name '+)
+        ((eq function-name '+)
             (+ ev-e1 ev-e2)
         )
-        ((eq name '-)
+        ((eq function-name '-)
             (- ev-e1 ev-e2)
         )
-        ((eq name '*)
+        ((eq function-name '*)
             (* ev-e1 ev-e2)
         )
-        ((eq name '>)
+        ((eq function-name '>)
             (> ev-e1 ev-e2)
         )
-        ((eq name '<)
+        ((eq function-name '<)
             (< ev-e1 ev-e2)
         )
-        ((eq name '=)
+        ((eq function-name '=)
             (= ev-e1 ev-e2)
         )
-        ((eq name 'and)
+        ((eq function-name 'and)
             (and ev-e1 ev-e2)
         )
-        ((eq name 'or)
+        ((eq function-name 'or)
             (or ev-e1 ev-e2)
         )
-        ((eq name 'not)
+        ((eq function-name 'not)
             (not ev-e1)
         )
     )
 )
 
-(defun run-function (name E P N V)
-    (let ((body (locate-function name P))
-            (param-list (locate-parameters name P))
+"
+Look for function-name in the user defined functions P by searching for the body of the function
+If it's found:
+    Evaluate the parameter list (cdr E) and call xeval on the body of the user defined function with the parameter list added to the context
+Else if it's not found:
+    treat E like a list, and return the evaluated list E
+"
+(defun run-function (function-name E P N V)
+    (let ((body (locate-function function-name P))
+          (param-list (locate-parameters function-name P))
     )
         (if body ; the user defined it, evaluate function call
             (let ((evaluated-list (evlist (cdr E) P N V)) ; evaluate the list of values for the function call
@@ -115,6 +137,9 @@
     )
 )
 
+"
+Iterates through all values in the given arg-list and calls xeval for each, then returns each evaluated argument as a list
+"
 (defun evlist (arg-list P N V)
     (if (null arg-list)
         nil
@@ -122,6 +147,13 @@
     )
 )
 
+"
+Searches through the context N and V for a desired element e
+If it's found in N
+    return the associated value from V
+Else if it's not in N
+    just return e as though it was quoted -> this allows us to treat letters as values in lists
+"
 (defun xassoc (e N V)
     (if (null N)
         e ; if not in context, just return the value as though it was quoted
@@ -132,30 +164,30 @@
     )
 )
 
-(defun locate (var name-sublist value-sublist)
-    (if (eq var (car name-sublist))
+(defun locate (var function-name-sublist value-sublist)
+    (if (eq var (car function-name-sublist))
         (car value-sublist)
     ; else
-        (locate var (cdr name-sublist) (cdr value-sublist))
+        (locate var (cdr function-name-sublist) (cdr value-sublist))
     )
 )
 
-(defun locate-function (name P)
+(defun locate-function (function-name P)
     (if (null P)
         nil
-        (if (eq name (car (car P))) ; compare name against current name in P
-            (car (cdr (cdr (cdr (car P))))) ; return body, drop name and =
-            (locate-function name (cdr P))
+        (if (eq function-name (car (car P))) ; compare function-name against current function-name in P
+            (car (cdr (cdr (cdr (car P))))) ; return body, drop function-name and =
+            (locate-function function-name (cdr P))
         )
     )
 )
 
-(defun locate-parameters (name P)
+(defun locate-parameters (function-name P)
     (if (null P)
         nil
-        (if (eq name (car (car P)))
-            (car (cdr (car P))) ; return body, drop name and =
-            (locate-parameters name (cdr P))
+        (if (eq function-name (car (car P)))
+            (car (cdr (car P))) ; return body, drop function-name and =
+            (locate-parameters function-name (cdr P))
         )
     )
 )
