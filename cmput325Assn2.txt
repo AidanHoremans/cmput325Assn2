@@ -1,0 +1,106 @@
+------------------------Question 1------------------------
+Applicative Order (Inner)
+(Lxyz | xz(yyz)) (Lx|x) (Lx|xy) a
+-> (Lx|x) a ((Lx|xy) (Lx|xy) a)
+-> (Lx|x) a ((Lx|xy) y a)
+-> (Lx|x) a (y y a)
+-> a (y y a)
+
+Normal Order (Outer first)
+(Lxyz | xz(yyz)) (Lx|x) (Lx|xy) a
+-> (Lx|x) a ((Lx|xy) (Lx|xy) a)
+-> a ((Lx|xy)(Lx|xy) a)
+-> a ((Lx|xy) y a)
+-> a (y y a)
+
+------------------------Question 2------------------------
+The logical flow of XOR is:
+if x then not y else y
+
+essentially, if x is true, we need to check that y is not true (returning not y)
+otherwise if x is false, we need to make sure that y is true (by returning the value of y)
+
+we can write this in lambda calculus as the following:
+XOR = (Lxy | x(yFT)y)
+
+(yFT) is the result of NOT y
+if x == T, we evaluate the first statement (make sure that y is false)
+otherwise we evaluate the second statement (make sure that y is true)
+
+(T returns first argument, F returns second)
+
+XOR TF:
+(Lxy | x(yFT)y) TF
+-> T(FFT)F
+-> (FFT)
+-> T
+
+XOR TT:
+(Lxy | x(yFT)y) TT
+-> T(TFT)T
+-> TFT
+-> F
+
+(not required by assignment, just here for my own sanity)
+XOR FT:
+(Lxy | x(yFT)y) FT
+-> F(TFT)T
+-> T
+
+XOR FF:
+(Lxy | x(yFT)y) FT
+-> F(FFT)F
+-> F
+
+
+
+------------------------Question 3------------------------
+a)
+(((lambda (x) (lambda (y) (+ (* 2 x) y))) 5) 3)
+CT0 = {}
+Evaluate (F1 3), where F1 = ((lambda (x) (lambda (y) (+ (* 2 x) y))) 5)
+
+Evaluate (F2 5), where F2 = (lambda (x) (lambda (y) (+ (* 2 x) y))
+F2 returns a closure [F2, CT0] (extending CT0)
+Apply F2 using 5:
+CT1 = {x->5} U CT0
+
+Body of F2 is: F3 = (lambda (y) (+ (* 2 x) y))
+F3 returns a closure [F3, CT1] (extending CT1)
+
+Nothing more to evaluate, returning to evaluation of (F1 3) with F1 = [F3, CT1]
+F3 has a body of (+ (* 2 x) y) and argument list of (y) with argument 3.
+Extend context CT1:
+CT2 = {y->3}U{x->5}U{}
+
+Evaluate body (+ (* 2 x) y) using CT2 {y->3, x->5}:
+(+ (* 2 5) 3)
+-> (+ (10) 3)
+-> 13
+
+Therefore the final context created was {y->3, x->5}.
+
+b)
+((lambda (x y) (x y)) (lambda (x) (+ 1 x)) 8))
+CT0 = {}
+Evaluate (F1 F2 8), where F1 = (lambda (x y) (x y)) and F2 = (lambda (x) (+ 1 x))
+Evaluate Arguments F2 and 8 on F1:
+F2 returns a closure [F2, CT0], 8 returns 8.
+F1 returns a closure [F1, CT0]
+Altogether this gives us the application ([F1, CT0] [F2, CT0] 8)
+
+Argument list (x y) and body (x y) for arguments ([F2, CT0], 8).
+CT1 = {x->[F2, CT0], y->8}U{}
+
+Evaluate body (x y) using CT1:
+([F2, CT0] 8)
+
+Evaluate closure [F2, CT0] with argument 8:
+Argument list (x) and body (+ 1 x) with argument 8.
+CT2 = {x->8}U{}
+
+Evaluate body (+ 1 x) using CT2:
+(+ 1 8)
+-> 9
+
+Therefore the final context created was CT2 = {x->8}
