@@ -1,4 +1,3 @@
-
 "
 Entry point for fl-interp
 "
@@ -158,20 +157,27 @@ Else if it's not in N
     (if (null N)
         e ; if not in context, just return the value as though it was quoted
         (if (member e (car N))
-            (locate e (car N) (car V)) ; locate e in N
+            (locate-value e (car N) (car V)) ; locate e in N
             (xassoc e (cdr N) (cdr V)) ; iterate over 
         )
     )
 )
 
-(defun locate (var function-name-sublist value-sublist)
+"
+Helper for xassoc:
+Finds the corresponding value for a given variable in the current context
+"
+(defun locate-value (var function-name-sublist value-sublist)
     (if (eq var (car function-name-sublist))
         (car value-sublist)
     ; else
-        (locate var (cdr function-name-sublist) (cdr value-sublist))
+        (locate-value var (cdr function-name-sublist) (cdr value-sublist))
     )
 )
 
+"
+For a function call in xeval, locate the function name from P and return its body
+"
 (defun locate-function (function-name P)
     (if (null P)
         nil
@@ -182,6 +188,10 @@ Else if it's not in N
     )
 )
 
+"
+Similar to locate-function, we find a funtion in P and this time return the parameter list defined for that function.
+We use this parameter list to help build our context.
+"
 (defun locate-parameters (function-name P)
     (if (null P)
         nil
@@ -189,14 +199,5 @@ Else if it's not in N
             (car (cdr (car P))) ; return body, drop function-name and =
             (locate-parameters function-name (cdr P))
         )
-    )
-)
-
-; for numeric comparison methods, check if vals are numeric, if not then deal with them appropriately
-(defun numeric-atomic (F e1 e2)
-    (cond
-        (not (numberp e1) )
-        ()
-        (t ())
     )
 )
