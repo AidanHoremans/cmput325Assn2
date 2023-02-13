@@ -10,7 +10,7 @@ Main loop:
 Returns nil for null expressions
 Returns E if E is a number
 If E is an atom, we iterate through the current context and return the associated value -> i.e. we assume atoms are variable names
-If the first element of E is an atomic function, we call run-atomic
+If the first element of E is an atomic function, we call evaluate-simple-atomic
 Otherwise, we call run-function to determine if the xeval call is on a user defined function or is just a list
 "
 (defun xeval (E P N V) ; E = expression, P = program, N = names, V = values
@@ -22,22 +22,13 @@ Otherwise, we call run-function to determine if the xeval call is on a user defi
             (xassoc E N V)
         )
     (t ; from above cond
-        (let ((function-name (car E)) ; function function-name for current value in E
-              (e1 (car (cdr E)))
-              (e2 (car (cdr (cdr E))))
-              (e3 (car (cdr (cdr (cdr E))))))
+        (let ((function-name (car E))) ; function function-name for current value in E
         (cond
-            ((eq function-name 'if)
-                (if (xeval e1 P N V)
-                    (xeval e2 P N V)
-                    (xeval e3 P N V)
-                )
+            ((member function-name '(if and or)) ; special case atomics
+                (evaluate-if-and-or function-name E P N V)
             )
-            ((member function-name '(null atom eq first rest cons equal car cdr number + - * > < = and or not)) ; built in functions!
-                (let ((ev-e1 (xeval e1 P N V)) ; evaluate their arguments first
-                      (ev-e2 (xeval e2 P N V)))
-                    (run-atomic function-name ev-e1 ev-e2)
-                )
+            ((member function-name '(null atom eq first rest cons equal car cdr number + - * > < = not)) ; simple atomics
+                (evaluate-simple-atomic function-name E P N V)
             )
             (t ; check against P if function-name is a function that has been user defined
                 (run-function function-name E P N V)
@@ -49,7 +40,11 @@ Otherwise, we call run-function to determine if the xeval call is on a user defi
 "
 Compare function-name against all known atomic functions and run the associated one
 "
-(defun run-atomic (function-name ev-e1 ev-e2)
+(defun evaluate-simple-atomic (function-name E P N V)
+    (let ((e1 (car (cdr E)))
+          (e2 (car (cdr (cdr E)))))
+    (let ((ev-e1 (xeval e1 P N V))
+          (ev-e2 (xeval e2 P N V))) ; evaluate e1 and e2 before we apply them to the following atomics
     (cond
         ((eq function-name 'null)
             (null ev-e1)
@@ -69,7 +64,7 @@ Compare function-name against all known atomic functions and run the associated 
         ((eq function-name 'cons)
             (cons ev-e1 ev-e2)
         )
-        ((eq function-name 'equal)
+        ((or (eq function-name 'equal) (eq function-name '=)) ; allows us to 
             (equal ev-e1 ev-e2)
         )
         ((eq function-name 'car)
@@ -96,18 +91,60 @@ Compare function-name against all known atomic functions and run the associated 
         ((eq function-name '<)
             (< ev-e1 ev-e2)
         )
-        ((eq function-name '=)
-            (= ev-e1 ev-e2)
+        ((eq function-name 'not)
+            (not (is-true ev-e1))
+        )
+    )))
+)
+
+"
+if, and, or are handled differently from other atomics. 
+"
+(defun evaluate-if-and-or (function-name E P N V)
+    (let ((e1 (car (cdr E))) ; get all elements out of E, even if not all functions use them
+          (e2 (car (cdr (cdr E))))
+          (e3 (car (cdr (cdr (cdr E))))))
+    (cond
+        ((eq function-name 'if)
+            (if (xeval e1 P N V) ; if ev-e1
+                (xeval e2 P N V) ; then ev-e2
+                (xeval e3 P N V) ; else ev-e3
+            )
         )
         ((eq function-name 'and)
-            (and ev-e1 ev-e2)
+            (cond 
+                ((not (is-true (xeval e1 P N V))) nil) ; evaluates e1, then returns false if it is false
+                ((not (is-true (xeval e2 P N V))) nil) ; evaluates e2, then returns false if it is false
+                (t t) ; otherwise if neither e1 or e2 evaluate to false, return true
+            )
         )
         ((eq function-name 'or)
-            (or ev-e1 ev-e2)
+            (cond
+                ((is-true (xeval e1 P N V)) t) ; evaluates e1, then returns true if it is true
+                ((is-true (xeval e2 P N V)) t) ; evaluates e2, then returns true if it is true
+                (t nil) ; otherwise if neither is true, return false
+            )
         )
-        ((eq function-name 'not)
-            (not ev-e1)
-        )
+    ))
+)
+
+"
+By definition for our interpreter, anything other than nil is considered true.
+"
+(defun is-true (e)
+    (if (null e)
+        nil
+        t
+    )
+)
+
+"
+This function is used for equality booleans such as < and >, so that we return nil if either element is not a number
+"
+(defun numeric-equality-booleans (F ev-e1 ev-e2)
+    (if (or (not (numberp ev-e1)) (not (numberp ev-e2)))
+        nil
+        (funcall F ev-e1 ev-e2);(cons ev-e1 (cons ev-e2 nil)))
     )
 )
 
