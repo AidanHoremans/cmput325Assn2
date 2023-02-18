@@ -1,5 +1,14 @@
 "
-Returns true if x is a member of L, false otherwise
+GENERAL PROGRAM NOTES:
+Due to the cyclical nature of some function calls (i.e. fl-interp calls evaluate-simple-atomic which calls fl-interp), 
+I was not able to reduce the number of style warnings to 0. This ordering of functions should cut down on it though.
+
+The 3 primary functions for function handling are located at the bottom. 
+    fl-interp, evaluate-if-and-or, evaluate-simple-atomic
+"
+
+"
+Returns true if x is a member of L, false otherwise.
 "
 (defun xmember (x L)
     (if (null L)
@@ -12,7 +21,7 @@ Returns true if x is a member of L, false otherwise
 )
 
 "
-Returns the Length of L
+Returns the Length of L. For use with 
 "
 (defun xlength (L) ; returns length of list L
     (if (null L)
@@ -22,7 +31,8 @@ Returns the Length of L
 )
 
 "
-Returns true if L1 and L2 have the same length -> used to allow overloading of function names with different parameter lengths
+Returns true if L1 and L2 have the same length -> used to allow overloading of function names with different parameter lengths.
+i.e. we use this while checking against P to ensure the parameter list of E matches that in P.
 "
 (defun equal-length (L1 L2) ; checks if the lengths of 2 lists are equal
     (= (xlength L1) (xlength L2))
@@ -34,7 +44,9 @@ Looks through P and returns a corresponding list ((body) (parameters)) if the fu
 (defun locate-function (function-name E P) ; checks for parity of parameters, returns body AND parameters in side by side list 
     (cond
         ((null P) nil)
-        ((and (eq function-name (car (car P))) (equal-length (car (cdr (car P))) (cdr E))) ; parameter length == length of variables list
+        ((and 
+            (eq function-name (car (car P))) 
+            (equal-length (car (cdr (car P))) (cdr E))) ; parameter length == length of variables list
             (cons (car (cdr (cdr (cdr (car P))))) (cons (car (cdr (car P))) nil))  ; constructs and returns a list of ((body) (parameters))
         )
         (t (locate-function function-name E (cdr P))) ; if function-name != function name in P OR parameter length != length of variables list, keep looking through P
@@ -42,23 +54,37 @@ Looks through P and returns a corresponding list ((body) (parameters)) if the fu
 )
 
 "
-For a given variable, go through the whole body and replace any instances of variable with replacement
+For a given variable, go through the whole body and replace any instances of variable with replacement. Called by replace-body.
+
+If body is null
+    return nil
+else if body IS NOT an atom
+    return the call of replace-variable on the first element of body cons'd to replace-variable for the rest of the body
+else if body IS AN atom
+    if body == variable
+        return replacement to be cons'd onto the new body
+    else if body IS AN atom and body != variable
+        return body (which is a single atom of a list) to be cons'd onto the new body
 "
-(defun replace-variable (body variable replacement) ;body to replace, variable and replacement
-    (if (null body)
-        nil
-        (if (atom body)
-            (if (equal body variable) ;if first item in body is equal to the required variable, 
-                replacement
-                body
-            )
-            (cons (replace-variable (car body) variable replacement) (replace-variable (cdr body) variable replacement))
+(defun replace-variable (body parameter replacement) ;body to replace, variable which gets overridden by replacement
+    (cond
+        ((null body) nil) ; end of body
+        ((not (atom body)) ; if the current value of body is not an atom, iterate through the first element attached to all other elements in body
+            (cons (replace-variable (car body) parameter replacement) (replace-variable (cdr body) parameter replacement))
+        )
+        ((equal body parameter) ; if current value IS an atom, and is equal to the variable we are replacing, return the repalcement value instead
+            replacement
+        )
+        (t ; otherwise if the current value IS an atom, but is not equal to the variable we are replacing, return it
+            body 
         )
     )
 )
 
 "
-Iterates through the body of a function, and replaces all parameters with their corresponding values
+Iterates through the current parameters, and calls replace-variable for every parameter for body. This call to replace-variable should replace
+all instances of (car parameters) with (car values). One the parameters list is empty, return the new body.
+If the parameters list is null, just return the body as is, since there's no variables to replace.
 "
 (defun replace-body (body parameters values) ; replace variables-names in body with values
     (if (null parameters)
@@ -79,26 +105,27 @@ Iterates through all values in the given arg-list and calls fl-interp for each, 
 
 "
 Look for function-name in the user defined functions P by searching for the body of the function
-If it's found:
+If the function is found in P:
     Evaluate the parameter list (cdr E) and call fl-interp on the body of the user defined function with the parameter list added to the context
 Else if it's not found:
     treat E like a list, and return the evaluated list E
 "
 (defun run-function (function-name E P)
-    (let ((body-and-parameters (locate-function function-name E P)) ; body is car, parameters are (cdr (car))
+    (let ((body-and-parameters (locate-function function-name E P)) ; for body-and-parameters body is car, parameters are (cdr (car))
     )
         (if body-and-parameters ; the user defined it, evaluate function call
             (let ((evaluated-list (evlist (cdr E) P)) ; evaluate the list of values for the function call -> i.e. perform AOR
             )
                 (fl-interp (replace-body (car body-and-parameters) (car (cdr body-and-parameters)) evaluated-list) P)
             )
-            (evlist E P) ; otherwise, return as evaluated list since not a primitive and not a known function call -> different from above evaluated-list
+            (evlist E P) ; otherwise, return as a list with every value evaluated since not a primitive and not a known function call -> different from above evaluated-list
         )
     )
 )
 
 "
-By definition for our interpreter, anything other than nil is considered true.
+By definition for our interpreter, anything other than nil is considered true. This function allows for easy short-circuiting of AND and OR
+by returning t for anything not null.
 "
 (defun is-true (e)
     (if (null e)
@@ -111,19 +138,21 @@ By definition for our interpreter, anything other than nil is considered true.
 MAIN LOOP:
 Returns nil for null expressions
 Returns E if E is a number
-If E is an atom, we iterate through the current context and return the associated value -> i.e. we assume atoms are variable names
-If the first element of E is an atomic function, we call evaluate-simple-atomic
-Otherwise, we call run-function to determine if the fl-interp call is on a user defined function or is just a list
+If E is an atom, 
+    we iterate through the current context and return the associated value -> i.e. we assume atoms are variable names
+If the first element of E is an atomic function, 
+    we call evaluate-simple-atomic
+Otherwise, 
+    we call run-function to determine if the fl-interp call is on a user defined function or is just a list
 "
 (defun fl-interp (E P) ; E = expression, P = program
-    ; iterate through
     (cond 
         ((null E) nil)
         ((atom E) E)
-    (t ; from above cond
+    (t ; handle functions, known and defined
         (let ((function-name (car E))) ; function function-name for current value in E
         (cond
-            ((xmember function-name '(if and or)) ; special case atomics
+            ((xmember function-name '(if and or)) ; special case atomics, using short circuiting
                 (evaluate-if-and-or function-name E P)
             )
             ((xmember function-name '(null atom eq first rest cons equal car cdr number + - * > < = not)) ; simple atomics
@@ -137,7 +166,8 @@ Otherwise, we call run-function to determine if the fl-interp call is on a user 
 )
 
 "
-if, and, or are handled differently from other atomics. we utilize short-circuiting to only evaluate specific parts of the function
+IF, AND, OR are handled differently from other atomics. we utilize short-circuiting to only evaluate specific parts of the function.
+Called by fl-interp.
 "
 (defun evaluate-if-and-or (function-name E P)
     (let ((e1 (car (cdr E))) ; get all elements out of E, even if not all functions use them
@@ -168,13 +198,14 @@ if, and, or are handled differently from other atomics. we utilize short-circuit
 )
 
 "
-Compare function-name against all known atomic functions and run the associated one
+Compare function-name against all known atomic functions and run the associated one.
+Called by fl-interp.
 "
 (defun evaluate-simple-atomic (function-name E P)
     (let ((e1 (car (cdr E)))
           (e2 (car (cdr (cdr E)))))
     (let ((ev-e1 (fl-interp e1 P))
-          (ev-e2 (fl-interp e2 P))) ; evaluate e1 and e2 before we apply them to the following atomics
+          (ev-e2 (fl-interp e2 P))) ; evaluate e1 and e2 before we apply them to the following atomics -> AOR
     (cond
         ((eq function-name 'null)
             (null ev-e1)
