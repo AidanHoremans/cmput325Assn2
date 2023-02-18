@@ -19,7 +19,8 @@ Otherwise, we call run-function to determine if the xeval call is on a user defi
         ((null E) nil)
         ((numberp E) E)
         ((atom E) ; when given a bound variable (like X), this fetches and returns the value from V
-            (xassoc E N V)
+            E
+            ;(xassoc E N V) rather than doing this with context, we just return E like a quote and assume that 
         )
     (t ; from above cond
         (let ((function-name (car E))) ; function function-name for current value in E
@@ -34,7 +35,7 @@ Otherwise, we call run-function to determine if the xeval call is on a user defi
                 (run-function function-name E P N V)
             ))
         )
-    )) 
+    ))
 )
 
 "
@@ -161,18 +162,38 @@ Else if it's not found:
     )
         (if body ; the user defined it, evaluate function call
             (let ((evaluated-list (evlist (cdr E) P N V)) ; evaluate the list of values for the function call
-            )  
-                (let ((new-names (cons param-list N)) ; construct a context of names consisting of the function's parameter list and the names of all other values
-                        (new-values (cons evaluated-list V)) ;construct a context of new-values, consisting of the evaluted list of values in front of all other values V
-                )
-                    (xeval body P new-names new-values)
-                )
+            )
+                (xeval (replace-body body param-list evaluated-list) P N V) ; N V should be removed soon
             )
             (evlist E P N V) ; otherwise, return as evaluated list since not a primitive and not a known function call -> different from above evaluated-list
         )
     )
 )
 
+"
+replaces all occurences of parameters in body
+"
+(defun replace-body (old-body parameters values) ; replace variables-names in body with values
+    ;go through every item in parameters and replace all instances in body with the first thing in values
+    (if (null parameters)
+        old-body
+        (replace-body (replace-variable old-body (car parameters) (car values)) (cdr parameters) (cdr values))
+    )
+)
+
+
+(defun replace-variable (body variable replacement) ;body to replace, variable and replacement
+    (if (null body)
+        nil
+        (if (atom body)
+            (if (equal body variable) ;if first item in body is equal to the required variable, 
+                replacement
+                body
+            )
+            (cons (replace-variable (car body) variable replacement) (replace-variable (cdr body) variable replacement))
+        )
+    )
+)
 "
 Iterates through all values in the given arg-list and calls xeval for each, then returns each evaluated argument as a list
 "
@@ -184,21 +205,34 @@ Iterates through all values in the given arg-list and calls xeval for each, then
 )
 
 "
+does the same thing as member
+"
+(defun xmember (member-list x)
+    (if (null member-list)
+        nil
+        (if (equal (car member-list) x)
+            t
+            (xmember (cdr member-list) x)
+        )
+    )
+)
+
+"
 Searches through the context N and V for a desired element e
 If it's found in N
     return the associated value from V
 Else if it's not in N
     just return e as though it was quoted -> this allows us to treat letters as values in lists
 "
-(defun xassoc (e N V)
-    (if (null N)
-        e ; if not in context, just return the value as though it was quoted
-        (if (member e (car N))
-            (locate-value e (car N) (car V)) ; locate e in N
-            (xassoc e (cdr N) (cdr V)) ; iterate over 
-        )
-    )
-)
+;; (defun xassoc (e N V)
+;;     (if (null N)
+;;         e ; if not in context, just return the value as though it was quoted
+;;         (if (member e (car N))
+;;             (locate-value e (car N) (car V)) ; locate e in N
+;;             (xassoc e (cdr N) (cdr V)) ; iterate over 
+;;         )
+;;     )
+;; )
 
 "
 Helper for xassoc:

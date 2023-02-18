@@ -1,12 +1,12 @@
 ------------------------Question 1------------------------
-Applicative Order (Inner)
+Applicative Order (Left Inner first)
 (Lxyz | xz(yyz)) (Lx|x) (Lx|xy) a
 -> (Lx|x) a ((Lx|xy) (Lx|xy) a)
 -> (Lx|x) a ((Lx|xy) y a)
 -> (Lx|x) a (y y a)
 -> a (y y a)
 
-Normal Order (Outer first)
+Normal Order (Left Outer first)
 (Lxyz | xz(yyz)) (Lx|x) (Lx|xy) a
 -> (Lx|x) a ((Lx|xy) (Lx|xy) a)
 -> a ((Lx|xy)(Lx|xy) a)
@@ -14,7 +14,7 @@ Normal Order (Outer first)
 -> a (y y a)
 
 ------------------------Question 2------------------------
-The logical flow of XOR is:
+The simplest logical flow of XOR is:
 if x then not y else y
 
 essentially, if x is true, we need to check that y is not true (returning not y)
@@ -26,8 +26,6 @@ XOR = (Lxy | x(yFT)y)
 (yFT) is the result of NOT y
 if x == T, we evaluate the first statement (make sure that y is false)
 otherwise we evaluate the second statement (make sure that y is true)
-
-(T returns first argument, F returns second)
 
 XOR TF:
 (Lxy | x(yFT)y) TF
@@ -53,16 +51,16 @@ XOR FF:
 -> F
 
 
-
 ------------------------Question 3------------------------
-a)
+part a)
+
 (((lambda (x) (lambda (y) (+ (* 2 x) y))) 5) 3)
 CT0 = {}
 Evaluate (F1 3), where F1 = ((lambda (x) (lambda (y) (+ (* 2 x) y))) 5)
 
 Evaluate (F2 5), where F2 = (lambda (x) (lambda (y) (+ (* 2 x) y))
 F2 returns a closure [F2, CT0] (extending CT0)
-Apply F2 using 5:
+Apply parameters of F2 with argument 5:
 CT1 = {x->5} U CT0
 
 Body of F2 is: F3 = (lambda (y) (+ (* 2 x) y))
@@ -80,7 +78,8 @@ Evaluate body (+ (* 2 x) y) using CT2 {y->3, x->5}:
 
 Therefore the final context created was {y->3, x->5}.
 
-b)
+part b)
+
 ((lambda (x y) (x y)) (lambda (x) (+ 1 x)) 8))
 CT0 = {}
 Evaluate (F1 F2 8), where F1 = (lambda (x y) (x y)) and F2 = (lambda (x) (+ 1 x))
