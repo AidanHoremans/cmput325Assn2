@@ -91,7 +91,7 @@ Compare function-name against all known atomic functions and run the associated 
 )
 
 "
-if, and, or are handled differently from other atomics. 
+if, and, or are handled differently from other atomics. we utilize short-circuiting to only evaluate specific parts of the function
 "
 (defun evaluate-if-and-or (function-name E P)
     (let ((e1 (car (cdr E))) ; get all elements out of E, even if not all functions use them
@@ -152,7 +152,7 @@ Else if it's not found:
     (let ((body-and-parameters (locate-function function-name E P)) ; body is car, parameters are (cdr (car))
     )
         (if body-and-parameters ; the user defined it, evaluate function call
-            (let ((evaluated-list (evlist (cdr E) P)) ; evaluate the list of values for the function call
+            (let ((evaluated-list (evlist (cdr E) P)) ; evaluate the list of values for the function call -> i.e. perform AOR
             )
                 (fl-interp (replace-body (car body-and-parameters) (car (cdr body-and-parameters)) evaluated-list) P)
             )
@@ -162,17 +162,18 @@ Else if it's not found:
 )
 
 "
-replaces all occurences of parameters in body
+Iterates through the body of a function, and replaces all parameters with their corresponding values
 "
-(defun replace-body (old-body parameters values) ; replace variables-names in body with values
-    ;go through every item in parameters and replace all instances in body with the first thing in values
+(defun replace-body (body parameters values) ; replace variables-names in body with values
     (if (null parameters)
-        old-body
-        (replace-body (replace-variable old-body (car parameters) (car values)) (cdr parameters) (cdr values))
+        body
+        (replace-body (replace-variable body (car parameters) (car values)) (cdr parameters) (cdr values))
     )
 )
 
-
+"
+For a given variable, go through the whole body and replace any instances of variable with replacement
+"
 (defun replace-variable (body variable replacement) ;body to replace, variable and replacement
     (if (null body)
         nil
@@ -197,62 +198,44 @@ Iterates through all values in the given arg-list and calls fl-interp for each, 
 )
 
 "
-does the same thing as member
+Returns true if x is a member of L, false otherwise
 "
-(defun xmember (x member-list)
-    (if (null member-list)
+(defun xmember (x L)
+    (if (null L)
         nil
-        (if (equal x (car member-list))
+        (if (equal x (car L))
             t
-            (xmember x (cdr member-list))
+            (xmember x (cdr L))
         )
     )
 )
 
+"
+Looks through P and returns a corresponding list ((body) (parameters)) if the function function-name is found
+"
 (defun locate-function (function-name E P) ; checks for parity of parameters, returns body AND parameters in side by side list 
     (cond
         ((null P) nil)
         ((and (eq function-name (car (car P))) (equal-length (car (cdr (car P))) (cdr E))) ; parameter length == length of variables list
-            (cons (car (cdr (cdr (cdr (car P))))) (cons (car (cdr (car P))) nil))  ; body + parameters
+            (cons (car (cdr (cdr (cdr (car P))))) (cons (car (cdr (car P))) nil))  ; constructs and returns a list of ((body) (parameters))
         )
-        (t (locate-function function-name E (cdr P)))
+        (t (locate-function function-name E (cdr P))) ; if function-name != function name in P OR parameter length != length of variables list, keep looking through P
     )
 )
 
+"
+Returns true if L1 and L2 have the same length -> used to allow overloading of function names with different parameter lengths
+"
 (defun equal-length (L1 L2) ; checks if the lengths of 2 lists are equal
     (= (xlength L1) (xlength L2))
 )
 
+"
+Returns the Length of L
+"
 (defun xlength (L) ; returns length of list L
     (if (null L)
         0
         (+ 1 (xlength (cdr L)))
     )
 )
-
-;; "
-;; For a function call in fl-interp, locate the function name from P and return its body
-;; "
-;; (defun locate-function (function-name P)
-;;     (if (null P)
-;;         nil
-;;         (if (eq function-name (car (car P))) ; compare function-name against current function-name in P
-;;             (car (cdr (cdr (cdr (car P))))) ; return body, drop function-name and =
-;;             (locate-function function-name (cdr P))
-;;         )
-;;     )
-;; )
-
-;; "
-;; Similar to locate-function, we find a funtion in P and this time return the parameter list defined for that function.
-;; We use this parameter list to help build our context.
-;; "
-;; (defun locate-parameters (function-name P)
-;;     (if (null P)
-;;         nil
-;;         (if (eq function-name (car (car P)))
-;;             (car (cdr (car P))) ; return body, drop function-name and =
-;;             (locate-parameters function-name (cdr P))
-;;         )
-;;     )
-;; )
